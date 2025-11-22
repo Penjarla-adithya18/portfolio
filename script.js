@@ -79,13 +79,80 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Simple form handling
+    // Enhanced form handling: send messages to email via Formsubmit.co (AJAX)
     const contactForm = document.getElementById('contact-form');
+    const contactFeedback = document.getElementById('contact-feedback');
+    const contactSubmit = document.getElementById('contact-submit');
     if (contactForm) {
-        contactForm.addEventListener('submit', function(e) {
+        contactForm.addEventListener('submit', async function(e) {
             e.preventDefault();
-            alert('Thank you for your message! I will get back to you soon.');
-            this.reset();
+
+            // Progressive enhancement: if form has no action, fallback to simple alert
+            const action = contactForm.getAttribute('action');
+            if (!action) {
+                alert('Thank you for your message! I will get back to you soon.');
+                contactForm.reset();
+                return;
+            }
+
+            // Prepare UI
+            if (contactSubmit) {
+                contactSubmit.disabled = true;
+                contactSubmit.textContent = 'Sending...';
+            }
+            if (contactFeedback) {
+                contactFeedback.textContent = '';
+            }
+
+            // Use Formsubmit's AJAX endpoint: replace base with /ajax/
+            let ajaxEndpoint = action;
+            try {
+                ajaxEndpoint = action.replace(/^https:\/\/(www\.)?formsubmit\.co\//i, 'https://formsubmit.co/ajax/');
+            } catch (err) {
+                // fallback: append /ajax/
+                ajaxEndpoint = action.replace(/\/$/, '') + '/ajax';
+            }
+
+            const formData = new FormData(contactForm);
+
+            try {
+                const res = await fetch(ajaxEndpoint, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+
+                if (!res.ok) {
+                    const errorText = await res.text();
+                    throw new Error(errorText || 'Network response was not ok');
+                }
+
+                const json = await res.json();
+                if (contactFeedback) {
+                    contactFeedback.classList.remove('text-danger');
+                    contactFeedback.classList.add('text-success');
+                    contactFeedback.textContent = json.message || 'Thank you — your message has been sent!';
+                } else {
+                    alert('Thank you — your message has been sent!');
+                }
+                contactForm.reset();
+            } catch (error) {
+                console.error('Form submission error:', error);
+                if (contactFeedback) {
+                    contactFeedback.classList.remove('text-success');
+                    contactFeedback.classList.add('text-danger');
+                    contactFeedback.textContent = 'Oops — there was a problem sending your message. Please try again later.';
+                } else {
+                    alert('There was a problem sending your message. Please try again later.');
+                }
+            } finally {
+                if (contactSubmit) {
+                    contactSubmit.disabled = false;
+                    contactSubmit.textContent = 'Send Message';
+                }
+            }
         });
     }
     
